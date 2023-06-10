@@ -74,7 +74,7 @@ for page in range(1, 100): #对每一页进行循环新闻抓取
             splitregex = '\d+'
             splitlist = usere(splitregex, t)
             if len(splitlist) == 4: #如果只提取到4个数字，证明第一个当前年份为2017年，需自动填充
-                tmpdate = int('2017' + splitlist[0] + splitlist[1]) #连接年月日，并转换为数字
+                tmpdate = int('2023' + splitlist[0] + splitlist[1]) #连接年月日，并转换为数字
                 tmptime = splitlist[2] + ':' + splitlist[3] #连接当日具体时间
             elif len(splitlist) == 5: #如果提取到5个数据，则已经包含年份信息
                 tmpdate = int(splitlist[0] + splitlist[1] + splitlist[2])
