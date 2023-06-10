@@ -25,7 +25,7 @@ stopwords = stopwords2
 
 #读取情绪字典
 global sentdict
-sentdict = pd.read_csv('sentdict.csv', encoding = 'gbk')
+sentdict = pd.read_csv('sentdict.csv', )
 sentdict2 = {}
 for i, j, k in zip(sentdict.words, sentdict.type, sentdict.strength):
 	sentdict2[i] = [j, k]

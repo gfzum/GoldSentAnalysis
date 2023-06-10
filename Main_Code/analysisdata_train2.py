@@ -13,7 +13,7 @@ import xgboost as xgb
 from sklearn import svm
 from NewsSent import News #从外部导入写好的情绪判别类
 import matplotlib.pyplot as plt
-from sklearn.cross_validation import train_test_split
+from sklearn.model_selection import train_test_split
 
 def usere(regex, content):
     pattern = re.compile(regex)
@@ -59,7 +59,7 @@ def join_news(self):
     joinnews = ''.join(newslist)
     return joinnews
 
-goldnews = pd.read_csv('analysisdata.csv', encoding = 'gbk')
+goldnews = pd.read_csv('analysisdata.csv')
 #新闻数据处理
 goldnews['date'] = list(map(lambda x : int(x), goldnews['date']))
 goldnews['title'] = list(map(lambda x : News(x), goldnews['title'])) #将黄金新闻标题转化为新闻类
@@ -67,7 +67,7 @@ goldnews['content'] = list(map(lambda x : x.content, goldnews['title'])) #新建
 goldnews['date'] = list(map(lambda x : int(x), goldnews['date'])) #将日期转换为整数
 
 #收益率数据处理
-golddata = pd.read_csv('goldetf.csv', encoding = 'gbk') #读取黄金ETF行情数据
+golddata = pd.read_csv('goldetf.csv', ) #读取黄金ETF行情数据
 colnames = ['date', 'open', 'high', 'low', 'close', 'turnover', 'volume'] #更改列名称，方便处理
 golddata.columns = colnames
 golddata['date'] = list(map(lambda x : int(datetime.datetime.strptime(x, '%Y/%m/%d').strftime('%Y%m%d')), golddata['date'])) #将日期转换为整数
@@ -104,7 +104,7 @@ golddata = pd.merge(golddata, joinnewsdf)
 golddata = golddata.dropna()
 
 ###################手动生成变量方式    
-sentdict = pd.read_csv('sentdict.csv', encoding = 'gbk')
+sentdict = pd.read_csv('sentdict.csv', )
 highfreqwords = list(sentdict['words'])
 vardict = dict(zip(highfreqwords, [[0]]*len(highfreqwords)))
 vardict2 = dict(zip(highfreqwords, [[]]*len(highfreqwords)))

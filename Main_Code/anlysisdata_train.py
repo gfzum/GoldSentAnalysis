@@ -10,7 +10,7 @@ import xgboost as xgb
 from sklearn import svm
 from NewsSent import News #从外部导入写好的情绪判别类
 import matplotlib.pyplot as plt
-from sklearn.cross_validation import train_test_split
+from sklearn.model_selection import train_test_split
 
 def genvar(content, vardict):
     wordslist = News(content).cut()
