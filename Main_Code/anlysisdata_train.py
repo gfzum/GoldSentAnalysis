@@ -1,5 +1,7 @@
 import os
-os.chdir('/Users/apple/Desktop/GoldSentAnalysis/News_Categorization')
+from os import path
+from path_config import PathConfig
+os.chdir(path.join(PathConfig.path, "News_Categorization"))
 import operator
 import datetime
 import numpy as np

@@ -6,7 +6,7 @@ import random
 import requests
 import pandas as pd
 
-os.chdir('/Users/apple/Desktop/gold')#切换到当前目录
+os.chdir('D:\\Onedrive\\OneDrive - 南方科技大学\\0Codes\\Github\\ChineseInfo\\GoldSentAnalysis\\Spiders_Code') #切换到当前目录
 
 def usere(regex, getcontent): #定义使用正则表达式的函数
     pattern = re.compile(regex)
@@ -16,11 +16,13 @@ def usere(regex, getcontent): #定义使用正则表达式的函数
 def get_ip(): #使用爬虫从外部网站获取IP，如果被反爬虫，更换IP
     head = {'User-Agent':'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36'}
     ipurl = 'http://www.xicidaili.com/nt/'
-    iphtml = requests.get(ipurl, headers = head, timeout = 60).content
+    iphtml = str(requests.get(ipurl, headers = head, timeout = 60).content)
     regex1 = 'alt="Cn" /></td>[^.]*<td>(.+?)</td>'
     regex2 = 'alt="Cn" /></td>[^.]*<td>.*?</td>[^.]*<td>(.+?)</td>[^.]*<td>[^.]*<a href'
     iplist = usere(regex1, iphtml)
     portlist = usere(regex2, iphtml)
+    # print(iplist)
+    # print(portlist)
     return (iplist, portlist)
 
 #先尝试从外部读入新闻更新数据，如果读取不到，创建新的数据表
@@ -32,25 +34,30 @@ except:
 
 iplist = get_ip()[0]
 
-for page in range(1500, 1600): #对每一页进行循环新闻抓取
+for page in range(1, 100): #对每一页进行循环新闻抓取
     head = {'User-Agent':'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36'} #伪造浏览器头
-    if page % 50 == 0 or page == 1: #每抓取50页更换一次IP
-        ip = random.sample(iplist, 1)
-        proxy = {'proxies':ip}
-        print ('更换IP')
+    # if page % 50 == 0 or page == 1: #每抓取50页更换一次IP
+    #     ip = random.sample(iplist, 1)
+    #     proxy = {'proxies':ip}
+    #     print ('更换IP')
     
-    url = 'http://roll.finance.sina.com.cn/finance/gjs/hjzx/index_%s.shtml' %page #新浪财经黄金新闻每一页链接
+    url = f"https://finance.sina.com.cn/roll/index.d.html?cid=57084&page={page}"
     while 1:
         try:
-            htmltext = requests.get(url, headers = head, proxies = proxy, timeout = 10).text #获得页面html文本
+            # htmltext = requests.get(url, headers = head, proxies = proxy, timeout = 10).text #获得页面html文本
+            res = requests.get(url, headers = head,  timeout = 10) #获得页面html文本
+            res.encoding = res.apparent_encoding
+            htmltext = res.text
             break #不断更换IP直到请求成功
-        except:
+        except Exception as e:
+            print(e)
+            print ('请求超时，更换IP')
             iplist = get_ip()[0]
             ip = random.sample(iplist, 1) #请求超时更换IP
             proxy = {'proxies':ip}
-            print ('请求超时，更换IP')
 
-    htmltext = htmltext.encode('latin1').decode('gbk') #网页编码后保留了等价的字节流数据，需latin1编码再gbk解码
+    # htmltext = htmltext.encode('latin1').decode('gbk') #网页编码后保留了等价的字节流数据，需latin1编码再gbk解码
+    # print(htmltext)
     regex1 = '<ul class="list_009">([\s\S]*?)</ul>' #观察网页，发现需两层正则表达式获取文本，此为第一层
     content1 = usere(regex1, htmltext) #对下一层内容使用正则表达式进行文本提取
     
@@ -79,7 +86,8 @@ for page in range(1500, 1600): #对每一页进行循环新闻抓取
     
     tmpdf = pd.DataFrame({'date':datelist, 'time':timelist, 'title':titlelist}) #每完成一页，生成一个临时数据表
     newsdf = pd.concat([newsdf, tmpdf]) #实时更新新闻表，并输出，防止数据丢失
-    newsdf.to_csv('/Users/apple/Desktop/gold/analysisdata.csv', index = False, encoding = 'gbk')
+    # print(newsdf)
+    newsdf.to_csv('analysisdata.csv', index = False, )
 
     print ('成功更新第%s页' %page) #实时输出更新信息
 

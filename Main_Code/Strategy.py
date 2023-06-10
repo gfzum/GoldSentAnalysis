@@ -1,150 +1,170 @@
-import os
-os.chdir('/Users/apple/Desktop/GoldSentAnalysis/News_Categorization')
-import datetime
-import numpy as np
-import pandas as pd
-from NewsSent import News #从外部导入写好的情绪判别类
-import matplotlib.pyplot as plt
-
-
-goldnews1 = pd.read_csv('analysisdata.csv', encoding = 'gbk') #读取黄金新闻
-goldnews2 = pd.read_csv('newsdata.csv', encoding = 'gbk')
-goldnews3 = pd.read_csv('hangqingdata.csv', encoding = 'gbk')
-goldnews = pd.concat([goldnews1, goldnews2, goldnews3])
-locindex = []
-for idx, i in enumerate(goldnews['title']):
-    if u'\u91d1' in i and u'\u4e0a\u6d77\u91d1\u4ea4\u6240' not in i and u'\u91d1\u878d' not in i and u'\u7eb8\u9ec4\u91d1' not in i and u'\u57fa\u91d1' not in i and u'\u8d44\u91d1' not in i and u'\u94af\u91d1' not in i and u'\u91d1\u9053' not in i:
-        locindex.append(idx)
-goldnews = goldnews.iloc[locindex]
-goldnews['title'] = list(map(lambda x : News(x), goldnews['title'])) #将黄金新闻标题转化为新闻类
-goldnews['content'] = list(map(lambda x : x.content, goldnews['title'])) #新建一列记录新闻标题情绪内容
-goldnews['date'] = list(map(lambda x : int(x), goldnews['date'])) #将日期转换为整数
-
-golddata = pd.read_csv('goldetf.csv', encoding = 'gbk') #读取黄金ETF行情数据
-colnames = ['date', 'open', 'high', 'low', 'close', 'turnover', 'volume'] #更改列名称，方便处理
-golddata.columns = colnames
-golddata['date'] = list(map(lambda x : int(datetime.datetime.strptime(x, '%Y/%m/%d').strftime('%Y%m%d')), golddata['date'])) #将日期转换为整数
-
-tradedate = list(golddata['date'])
-newsdate = list(map(lambda x : int((datetime.datetime.strptime(str(x), '%Y%m%d') + datetime.timedelta(1)).strftime('%Y%m%d')), goldnews['date'])) #将新闻日期后移一天与交易日对齐
-goldnews['newsdate'] = newsdate #以下部分按照交易日头尾取新闻
-goldnews = goldnews[goldnews['newsdate'] >= min(tradedate)]
-goldnews = goldnews[goldnews['newsdate'] <= max(tradedate)]
-newsdate = list(goldnews['newsdate'])
-newsdatelist = []
-for i in newsdate: #如果新闻当天不是交易日，将新闻日期移动到交易日
-    if i in tradedate:
-        newsdatelist.append(i)
-    else:
-        while 1:
-            i = int((datetime.datetime.strptime(str(i), '%Y%m%d') + datetime.timedelta(1)).strftime('%Y%m%d'))
-            if i in tradedate:
-                newsdatelist.append(i)
-                break
-
-goldnews['newsdate'] = newsdatelist
-
-score2list = []
-newsnumlist = []
-for idx, i in enumerate(golddata['date']):
-    contentlist = []
-    content = list(goldnews['content'][goldnews['newsdate'] == i])
-    if content == []:
-        score2list.append(0)
-        newsnumlist.append(0)
-        continue
-    content = list(np.unique(content))
-    newsnumlist.append(len(content))
-    linkcontent = ','.join(content)
-    score2list.append(News(linkcontent).get_score() / np.double(len(content)))
-    print (idx)
-golddata['score2'] = score2list
-golddata['newsnum'] = newsnumlist
-
-
-#策略
-equity = 1
-equitylist = []
-golddata2 = golddata.iloc[:]
-
-tradelist = [0]*len(golddata2)
-state = 0
-for i in range(1, len(golddata2)):
-    if (golddata2['score2'].iloc[i] / golddata2['score2'].iloc[i-1] <= -3 and golddata2['score2'].iloc[i] / golddata2['score2'].iloc[i-1] != -np.inf and state == 0 and golddata2['score2'].iloc[i] > 0.1) or (golddata2['score2'].iloc[i] > 0.2 and state == 0):
-        tradelist[i] = 1
-        state = 1
-    if state == 1:
-        if golddata2['score2'].iloc[i] < -0.1:
-            tradelist[i] = 2
-            state = 0
-
-    if (golddata2['score2'].iloc[i] / golddata2['score2'].iloc[i-1] <= -3 and golddata2['score2'].iloc[i] / golddata2['score2'].iloc[i-1] != -np.inf and state == 0 and golddata2['score2'].iloc[i] < -0.1) or (golddata2['score2'].iloc[i] < -0.2 and state == 0):
-        tradelist[i] = -1
-        state = -1
-    if state == -1:
-        if golddata2['score2'].iloc[i] > 0.1:
-            tradelist[i] = -2
-            state = 0
-
-
-state = 0
-lags = 0
-longdatelist = []
-clearlongdatelist = []
-shortdatelist = []
-clearshortdatelist = []
-for idx, signal in enumerate(tradelist):
-    if state == 0 and signal == 1:
-        longprice = golddata2['open'].iloc[idx+lags]
-        state = 1
-        longdatelist.append(golddata2['date'].iloc[idx+lags])
-    elif state == 1 and signal == 2:
-        clearlongprice = golddata2['open'].iloc[idx+lags]
-        clearlongdatelist.append(golddata2['date'].iloc[idx+lags])
-        state = 0
-        equity = equity * clearlongprice / longprice
-    #equitylist.append(equity)
-    if state == 0 and signal == -1:
-        shortprice = golddata2['open'].iloc[idx+lags]
-        state = -1
-        shortdatelist.append(golddata2['date'].iloc[idx+lags])
-    elif state == -1 and signal == -2:
-        clearshortprice = golddata2['open'].iloc[idx+lags]
-        state = 0
-        equity = equity * shortprice / clearshortprice
-    #equitylist.append(equity)
-    if state == 0:
-        equitylist.append(equity)
-        clearshortdatelist.append(golddata2['date'].iloc[idx+lags])
-    if state == 1:
-        try:
-            equity = equity * golddata2['open'].iloc[idx+lags] / golddata2['open'].iloc[idx+lags-1]
-            equitylist.append(equity)
-        except:
-            break
-    if state == -1:
-        try:
-            equity = equity * golddata2['open'].iloc[idx+lags-1] / golddata2['open'].iloc[idx+lags]
-            equitylist.append(equity)
-        except:
-            break
-
-plt.plot(equitylist)
-plt.title('Strategy Result')
-plt.ylabel('Equity')
-plt.xlabel('Time Unit')
-
-#计算最大回撤
-drawbacklist = []
-for i in range(len(equitylist)):
-    j = i + 1
-    while j<len(equitylist):
-        drawbacklist.append(equitylist[j] / equitylist[i])
-        j += 1
-maxdrawback = min(drawbacklist) - 1
-
-#计算年化收益
-annualreturn = (equitylist[-1] - 1) / len(equitylist) * 250
-
-#计算夏普收益
-SR = (annualreturn - 0.035) / np.sqrt(np.var(equitylist))
+words,strength,type
+风险,1,1
+面临,1,1
+反弹,1,1
+清淡,1,-1
+不升反降,1,-1
+新高,1,1
+利空,1,-1
+避险,1,1
+强劲,1,1
+一帆风顺,1,1
+不佳,1,-1
+涌入,1,1
+支撑,1,1
+暴跌,1,-1
+熊抱,1,-1
+减少,1,-1
+箭在弦上,1,1
+入局,1,1
+上涨,1,1
+衰退,1,-1
+震荡,1,-1
+回升,1,1
+利好,1,1
+加息,1,-1
+应涨,1,1
+大涨,1,1
+恶化,1,-1
+展望,1,1
+胜出,1,1
+走高,1,1
+担忧,1,-1
+飙涨,1,1
+溃败,1,-1
+跌破,1,-1
+退潮,1,-1
+下挫,1,-1
+受阻,1,-1
+坐收渔利,1,1
+不减,1,1
+上涨,1,-1
+遥遥无期,1,-1
+下跌,1,-1
+操纵,1,-1
+受益,1,1
+下滑,1,-1
+攀升,1,1
+推高,1,1
+攻势,1,1
+乐观,1,1
+迅速,1,1
+爆发,1,1
+回暖,1,1
+风险,1,-1
+疑虑,1,-1
+回落,1,-1
+跌入,1,-1
+稳定,1,1
+流入,1,1
+创纪录,1,1
+散户,1,-1
+疲软,1,-1
+祸不单行,1,-1
+高位,1,-1
+弱不禁风,1,-1
+尴尬,1,-1
+浑水摸鱼,1,-1
+稳定上升,1,1
+流出,1,-1
+不确定性,1,-1
+争端,1,-1
+上行,1,1
+引爆,1,1
+涨幅,1,1
+回撤,1,-1
+警惕,1,-1
+净流入,1,1
+高估,1,-1
+恐怖,1,-1
+势在必得,1,1
+骤降,1,-1
+恐难,1,-1
+无人问津,1,-1
+获利,1,1
+小涨,1,1
+忧心,1,-1
+突破,1,1
+转弱,1,-1
+再创新高,1,1
+凌厉,1,1
+有限,1,-1
+死亡,1,-1
+缩减,1,-1
+企稳,1,1
+束缚,1,-1
+恐低,1,-1
+姗姗来迟,1,-1
+看多,1,1
+收跌,1,-1
+回温,1,1
+强阻,1,-1
+偏空,1,-1
+走弱,1,-1
+放缓,1,-1
+弱势,1,-1
+普涨,1,1
+减弱,1,-1
+谨慎,1,-1
+火爆,1,1
+破局,1,1
+惨遭,1,-1
+金叉,1,1
+不涨反跌,1,-1
+暴涨,1,1
+遭遇,1,-1
+有利可图,1,1
+跌下来,1,-1
+涨势,1,1
+日高,1,1
+会涨,1,1
+走低,1,-1
+切忌,1,-1
+上升,1,1
+底部,1,1
+偏跌,1,-1
+悬而未决,1,-1
+金融风暴,1,-1
+绑架,1,-1
+忧虑,1,-1
+狂欢,1,1
+糟糕,1,-1
+黑天鹅,1,1
+掺假,1,-1
+强势,1,1
+自由落体,1,-1
+发力,1,1
+繁荣,1,1
+混乱,1,-1
+走软,1,-1
+积弱,1,-1
+看低,1,-1
+见顶,1,-1
+回踩,1,1
+多单,1,1
+震荡下跌,1,-1
+关键支持,1,1
+雪崩,1,-1
+空单,1,-1
+破位,1,-1
+真跌,1,-1
+假涨,1,1
+秒跌,1,-1
+做多,1,1
+做空,1,-1
+看涨,1,1
+看跌,1,-1
+不追涨,1,-1
+上攻,1,1
+减持,1,-1
+升势,1,1
+跌势,1,-1
+压制,1,-1
+超跌,1,1
+调整,1,-1
+继续空,1,-1
+继续多,1,1
+出货,1,-1
+放空,1,-1
+跌至,1,-1
+布空,1,-1
